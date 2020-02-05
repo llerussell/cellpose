@@ -13,6 +13,7 @@ from scipy.ndimage import gaussian_filter1d
 from scipy.interpolate import interp1d
 from skimage import io
 from skimage import transform, draw, measure, segmentation
+import scipy.io as sio
 
 import mxnet as mx
 from mxnet import nd
@@ -126,6 +127,11 @@ class MainW(QtGui.QMainWindow):
         self.saveSet.triggered.connect(self.save_sets)
         file_menu.addAction(self.saveSet)
         self.saveSet.setEnabled(False)
+
+        self.saveSetMat = QtGui.QAction("&Save masks and images (as *.mat)", self)
+        self.saveSetMat.triggered.connect(self.save_sets_mat)
+        file_menu.addAction(self.saveSetMat)
+        self.saveSetMat.setEnabled(False)
 
         self.saveServer = QtGui.QAction("Send manually labelled data to server", self)
         self.saveServer.triggered.connect(self.save_server)
@@ -956,6 +962,38 @@ class MainW(QtGui.QMainWindow):
                                                       self.ChannelChoose[0].currentText(),
                                                       self.ChannelChoose[1].currentText()))
 
+    def save_sets_mat(self):
+        if self.is_stack:
+            base = os.path.splitext(self.filename)[0]
+        else:
+            base = os.path.splitext(self.filename[self.currentZ])[0]
+        if self.NZ > 1 and self.is_stack:
+            sio.savemat(base + '_seg.mat',
+                    {'outlines': self.outpix,
+                     'colors': self.cellcolors[1:],
+                     'masks': self.cellpix,
+                     'current_channel': (self.color-2)%5,
+                     'filename': self.filename})
+        else:
+            image = self.chanchoose(self.stack[self.currentZ].copy())
+            if image.ndim < 4:
+                image = image[np.newaxis,...]
+            sio.savemat(base + '_seg.mat',
+                    {'outlines': self.outpix.squeeze(),
+                     'colors': self.cellcolors[1:],
+                     'masks': self.cellpix.squeeze(),
+                     'chan_choose': [self.ChannelChoose[0].currentIndex(),
+                                     self.ChannelChoose[1].currentIndex()],
+                     'img': image.squeeze(),
+                     'X2': self.X2,
+                     'filename': self.filename,
+                     'flows': self.flows})
+        #print(self.point_sets)
+        print('--- %d ROIs saved chan1 %s, chan2 %s'%(self.ncells,
+                                                      self.ChannelChoose[0].currentText(),
+                                                      self.ChannelChoose[1].currentText()))
+
+
     def save_server(self):
         """Uploads a file to the bucket."""
         q = QtGui.QMessageBox.question(
@@ -1390,6 +1428,7 @@ class MainW(QtGui.QMainWindow):
         self.SizeButton.setStyleSheet(self.styleUnpressed)
         self.loadMasks.setEnabled(True)
         self.saveSet.setEnabled(True)
+        self.saveSetMat.setEnabled(True)
         self.toggle_mask_ops()
             
         self.update_plot()
